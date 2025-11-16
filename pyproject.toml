@@ -1,0 +1,29 @@
+[project]
+name = "honey-stalker"
+version = "0.1.0"
+authors = [{name="MuKonqi (Muhammed S.)"}]
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+  "Topic :: Utilities",
+  "Programming Language :: Python",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: MIT License"
+]
+dependencies = ["beautifulsoup4", "click", "lxml", "requests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["A", "B", "E", "F", "I", "SIM", "UP", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
