@@ -131,7 +131,7 @@ def main(
         domain = urlparse(url).netloc
         os.makedirs(domain, exist_ok=True)
         with open(os.path.join(domain, ".gitignore"), "w") as f:
-            f.write("# Automatically created by honey-stalker\n")
+            f.write("# Automatically created by honey-dl\n")
             f.write("*")
 
         if ends_with_git(url):

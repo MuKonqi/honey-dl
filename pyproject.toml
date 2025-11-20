@@ -1,5 +1,5 @@
 [project]
-name = "honey-stalker"
+name = "honey-dl"
 version = "0.1.0"
 authors = [{name="MuKonqi (Muhammed S.)"}]
 readme = "README.md"
