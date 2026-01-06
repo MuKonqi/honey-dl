@@ -173,8 +173,11 @@ def main(
         if ends_with_git(url):
             print("📄 Single-page mode: Starting download...")
             soup = get_soup(url, headers, proxies, retries, timeout)
-            if soup is None:
+
+            if not soup:
+                print("❔ Nothing to download.")
                 return
+
             results = soup.find_all("img", class_="img-thumbnail")
             handle_page(results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers)
             print("✅ Downloading completed!")
@@ -188,10 +191,11 @@ def main(
                     print(f"❌ Failed to retrieve page: {paginated_url}")
                     break
 
-                results = soup.find_all("img", class_="img-thumbnail")
-                if not results:
+                if not soup:
                     print("✅ Downloading completed!")
                     break
+
+                results = soup.find_all("img", class_="img-thumbnail")
 
                 handle_page(
                     results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers
