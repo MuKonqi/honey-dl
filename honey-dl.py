@@ -2,6 +2,7 @@ import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from urllib.parse import urlparse
 
 import click
@@ -102,7 +103,7 @@ def handle_page(
 ):
     with ThreadPoolExecutor(max_workers=workers) as executor:
         for img in results:
-            date = img.get("alt")
+            date = datetime.strptime(img.get("alt"), "%d-%m-%Y").strftime("%Y-%m-%d")
             src = img.get("src")
             executor.submit(
                 download_image, date, src, domain, add_dates, create_folders, force, headers, proxies, retries, timeout
