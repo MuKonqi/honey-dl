@@ -47,8 +47,8 @@ def download_image(
         return True
 
 
-def ends_with_git(url: str):
-    return bool(re.search(r"&git=\d+$", url))
+def contains_navigator(url: str, navigator: str):
+    return bool(re.search(rf"(\?|&|#){navigator}=(\d+)(&|$)", url))
 
 
 def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: int):
@@ -143,6 +143,24 @@ def parse_json_callback(ctx, param, value):
     help="HTTP headers as JSON string",
 )
 @click.option(
+    "-n",
+    "--navigator",
+    default="git",
+    help="The URL parameter for navigating to different pages"
+)
+@click.option(
+    "-p1",
+    "--page-start",
+    default=0,
+    help="First page to download (0 means no limit)"
+)
+@click.option(
+    "-p2",
+    "--page-end",
+    default=0,
+    help="Last page to download (0 means no limit)"
+)
+@click.option(
     "-p",
     "--proxies",
     default="{}",
@@ -158,6 +176,9 @@ def main(
     create_folders: bool,
     force: bool,
     headers: dict,
+    navigator: str,
+    page_start: int,
+    page_end: int,
     proxies: dict,
     retries: int,
     timeout: int,
@@ -171,39 +192,37 @@ def main(
             f.write("# Automatically created by honey-dl\n")
             f.write("*")
 
-        if ends_with_git(url):
-            print("📄 Single-page mode: Starting download...")
-            soup = get_soup(url, headers, proxies, retries, timeout)
+        if contains_navigator(url, navigator):
+            page_start = int([param.split("=")[-1] for param in urlparse(url).query.split("&") if param.startswith(navigator)][0])
+        else:
+            page_start = 1 if page_start == 0 else page_start
+
+        if page_end != 0 and page_end < page_start:
+            print("❌ Last page should be bigger or equal to first page.")
+            exit(1)
+
+        page = page_start
+
+        while (page <= page_end) or (page_end == 0):
+            navigated_url = f"{url}&{navigator}={page}"
+            print(f"📖 Processing page: {page}")
+            soup = get_soup(navigated_url, headers, proxies, retries, timeout)
+            if soup is None:
+                print(f"❌ Failed to retrieve page: {navigated_url}")
+                break
 
             if not soup:
-                print("❔ Nothing to download.")
-                return
+                print("✅ Downloading completed!")
+                break
 
             results = soup.find_all("img", class_="img-thumbnail")
-            handle_page(results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers)
-            print("✅ Downloading completed!")
-        else:
-            page = 1
-            while True:
-                paginated_url = f"{url}&git={page}"
-                print(f"📖 Processing page: {page}")
-                soup = get_soup(paginated_url, headers, proxies, retries, timeout)
-                if soup is None:
-                    print(f"❌ Failed to retrieve page: {paginated_url}")
-                    break
 
-                if not soup:
-                    print("✅ Downloading completed!")
-                    break
-
-                results = soup.find_all("img", class_="img-thumbnail")
-
-                handle_page(
-                    results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers
-                )
-                page += 1
+            handle_page(
+                results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers
+            )
+            page += 1
     except KeyboardInterrupt:
-        print("\n🛑 Interrupted by user. Trying to exit..")
+        print("\n🛑 Interrupted by user. Trying to exit... If it fails, press again.")
         exit(0)
 
 
