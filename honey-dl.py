@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -44,12 +44,13 @@ def download_image(
             with open(path, "wb") as f:
                 f.write(content) # Write the image (bytes) to a file
             print(f"📥 Downloaded: {filename}")
+            return True, False # False means the image just downloaded
         else:
             print(f"⏭️ Skipped (already exists): {filename}")
-        return True
+            return True, True # True means the image already downloaded
 
     else:
-        return False
+        return False, False # Second boolean is unimportant here
 
 
 def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: int):
@@ -101,6 +102,12 @@ def parse_json_callback(ctx, param, value):
     help="Add the upload date (YYYY-mm-dd) to filename",
 )
 @click.option(
+    "-b",
+    "--break-number",
+    default=1,
+    help="Break the loop after reaching this many pages (0 for disable)"
+)
+@click.option(
     "-c",
     "--create-folders/--no-create-folders",
     default=False,
@@ -145,6 +152,7 @@ def parse_json_callback(ctx, param, value):
 @click.argument("url")
 def main(
     add_dates: bool,
+    break_number: int,
     create_folders: bool,
     force: bool,
     headers: dict,
@@ -185,8 +193,9 @@ def main(
             exit(1)
 
         page = page_start
+        old_pages = 0
 
-        while (page <= page_end) or (page_end == 0): # 0 means unlimited, so the condition should be True
+        while (page <= page_end or page_end == 0) and (old_pages < break_number or break_number == 0): # 0 means unlimited, so the condition(s) should be True
             navigated_url = f"{url}&{navigator}={page}" # Set the target URL
             print(f"📖 Processing page: {page}")
 
@@ -201,12 +210,22 @@ def main(
 
             results = soup.find_all("img", class_="img-thumbnail") # Find all images in HTML
             with ThreadPoolExecutor(max_workers=workers) as executor:
+                old_files = 0 # Number of old files
+                tasks = [] # The download tasks
+
                 for img in results:
                     date = datetime.strptime(img.get("alt"), "%d-%m-%Y").strftime("%Y-%m-%d")
                     src = img.get("src")
-                    executor.submit(
+                    tasks.append(executor.submit(
                         download_image, date, src, domain, add_dates, create_folders, force, headers, proxies, retries, timeout
-                    )
+                    ))
+
+                for future in as_completed(tasks):
+                    if future.result()[1]: # Check the 2nd boolean
+                        old_files += 1
+
+                if old_files == len(tasks): # Means all files are already downloaded in this page
+                    old_pages += 1
 
             page += 1
 
