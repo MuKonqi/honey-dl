@@ -22,16 +22,18 @@ def download_image(
     retries: int,
     timeout: int,
 ):
-    content = get_content(url, headers, proxies, retries, timeout)
+    """Download and save a image."""
+
+    content = get_content(url, headers, proxies, retries, timeout) # Get image as bytes
 
     if content:
-        url_path = urlparse(url).path
-        filename = os.path.basename(url_path)
+        url_path = urlparse(url).path # Convert the URL to path
+        filename = os.path.basename(url_path) # Extract filename from URL's path
 
-        if add_dates:
+        if add_dates: # YYYY-mm-dd
             filename = f"({date}) {filename}"
 
-        if create_folders:
+        if create_folders: # YYYY-mm-dd
             folder = os.path.basename(os.path.dirname(url_path))
             path = os.path.join(domain, folder, filename)
         else:
@@ -40,36 +42,37 @@ def download_image(
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.isfile(path) or force:
             with open(path, "wb") as f:
-                f.write(content)
+                f.write(content) # Write the image (bytes) to a file
             print(f"📥 Downloaded: {filename}")
         else:
             print(f"⏭️ Skipped (already exists): {filename}")
         return True
 
-
-def contains_navigator(url: str, navigator: str):
-    return bool(re.search(rf"(\?|&|#){navigator}=(\d+)(&|$)", url))
+    else:
+        return False
 
 
 def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: int):
-    i = 0
+    """Get content of a URL and return as bytes."""
+
+    i = 1
 
     while i <= retries:
         try:
             response = requests.get(url, headers=headers, proxies=proxies, timeout=timeout)
-            if response.status_code == 200:
+            if response.status_code == 200: # Means the request was successful
                 return response.content
             else:
                 print(f"❌ Failed to get: {url}, {response.status_code}")
                 return False
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout: # Prorably because of the host's limites
             if i == retries:
                 print(f"❌ Timed out: {url}")
                 return False
             else:
                 print(f"🔁 Timed out, retrying ({i + 1}/{retries}): {url}")
             i += 1
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e: # Something is wrong with requests
             print(f"❌ Request error: {url}, {e}")
             if i == retries:
                 return False
@@ -77,40 +80,9 @@ def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: i
             i += 1
 
 
-def get_soup(url: str, headers: dict, proxies: dict, retries: int, timeout: int):
-    content = get_content(url, headers, proxies, retries, timeout)
-
-    if content:
-        try:
-            return BeautifulSoup(content, "lxml")
-        except FeatureNotFound:
-            return BeautifulSoup(content, "html.parser")
-    else:
-        return False
-
-
-def handle_page(
-    results: list,
-    domain: str,
-    add_dates: bool,
-    create_folders: bool,
-    force: bool,
-    headers: dict,
-    proxies: dict,
-    retries: int,
-    timeout: int,
-    workers: int,
-):
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        for img in results:
-            date = datetime.strptime(img.get("alt"), "%d-%m-%Y").strftime("%Y-%m-%d")
-            src = img.get("src")
-            executor.submit(
-                download_image, date, src, domain, add_dates, create_folders, force, headers, proxies, retries, timeout
-            )
-
-
 def parse_json_callback(ctx, param, value):
+    """Parses JSON from passed arguments."""
+
     if not value:
         return {}
     if isinstance(value, dict):
@@ -126,15 +98,15 @@ def parse_json_callback(ctx, param, value):
     "-a",
     "--add-dates/--no-add-dates",
     default=True,
-    help="Add the date (from alt attribute) to filename",
+    help="Add the upload date (YYYY-mm-dd) to filename",
 )
 @click.option(
     "-c",
     "--create-folders/--no-create-folders",
     default=False,
-    help="Create subfolders based on URL path",
+    help="Create subfolders based on upload date (YYYY-mm-dd)",
 )
-@click.option("-f", "--force/--no-force", default=False, help="Overwrite existing files")
+@click.option("-f", "--force/--no-force", default=False, help="Overwrite existing files (re-download)")
 @click.option(
     "-h",
     "--headers",
@@ -146,30 +118,30 @@ def parse_json_callback(ctx, param, value):
     "-n",
     "--navigator",
     default="git",
-    help="The URL parameter for navigating to different pages"
+    help="The URL parameter/query for navigating to different pages"
 )
 @click.option(
     "-p1",
     "--page-start",
     default=0,
-    help="First page to download (0 means no limit)"
+    help="First page to download (0 means no limit: 1)"
 )
 @click.option(
     "-p2",
     "--page-end",
     default=0,
-    help="Last page to download (0 means no limit)"
+    help="Last page to download (0 means no limit: until error)"
 )
 @click.option(
     "-p",
     "--proxies",
     default="{}",
     callback=parse_json_callback,
-    help="Proxy settings as JSON",
+    help="Proxies as JSON string",
 )
 @click.option("-r", "--retries", default=5, type=int, help="Number of retries per request")
-@click.option("-t", "--timeout", default=5, type=int, help="Timeout time per request")
-@click.option("-w", "--workers", default=30, type=int, help="Number of downloader workers")
+@click.option("-t", "--timeout", default=5, type=int, help="Timeout time in seconds for a request")
+@click.option("-w", "--workers", default=30, type=int, help="Number of downloader workers (threads)")
 @click.argument("url")
 def main(
     add_dates: bool,
@@ -185,44 +157,62 @@ def main(
     workers: int,
     url: str,
 ):
+    """The main function."""
     try:
         domain = urlparse(url).netloc
         os.makedirs(domain, exist_ok=True)
+
+        # For testing, nobody don't want upload that files accidently
         with open(os.path.join(domain, ".gitignore"), "w") as f:
             f.write("# Automatically created by honey-dl\n")
             f.write("*")
 
-        if contains_navigator(url, navigator):
-            page_start = int([param.split("=")[-1] for param in urlparse(url).query.split("&") if param.startswith(navigator)][0])
-        else:
+        # If the URL contains the navigator
+        if bool(re.search(rf"(\?|&|#){navigator}=(\d+)(&|$)", url)):
+            param = [param for param in urlparse(url).query.split("&") if param.startswith(navigator)][0] # Get navigator with the value
+            page_start = int(param.split("=")[-1]) # Extract start page number
+
+            try: # Clean the URL from navigator with its previous and next connectors ("&" and "&"")
+                url = url.replace(f"{"&" if url[url.find(param) - 1] == "&" else ""}{param}{"&" if url[url.find(param) + len(param)] else "" == "&"}", "")
+            except IndexError: # Clean the URL from navigator with its previous ("&"")
+                url = url.replace(f"{"&" if url[url.find(param) - 1] == "&" else ""}{param}", "")
+
+        else: # 0 means unlimited, so we should start from one
             page_start = 1 if page_start == 0 else page_start
 
         if page_end != 0 and page_end < page_start:
-            print("❌ Last page should be bigger or equal to first page.")
+            print(f"❌ Last page ({page_end}) should be bigger or equal to first page ({page_start}).")
             exit(1)
 
         page = page_start
 
-        while (page <= page_end) or (page_end == 0):
-            navigated_url = f"{url}&{navigator}={page}"
+        while (page <= page_end) or (page_end == 0): # 0 means unlimited, so the condition should be True
+            navigated_url = f"{url}&{navigator}={page}" # Set the target URL
             print(f"📖 Processing page: {page}")
-            soup = get_soup(navigated_url, headers, proxies, retries, timeout)
-            if soup is None:
-                print(f"❌ Failed to retrieve page: {navigated_url}")
-                break
 
-            if not soup:
-                print("✅ Downloading completed!")
-                break
+            content = get_content(navigated_url, headers, proxies, retries, timeout) # Get HTML of the URL
+            if content:
+                try:
+                    soup = BeautifulSoup(content, "lxml") # Try to parse HTML faster
+                except FeatureNotFound:
+                    soup = BeautifulSoup(content, "html.parser") # Parse HTML
+            else:
+                break # The downloading is prorably finished
 
-            results = soup.find_all("img", class_="img-thumbnail")
+            results = soup.find_all("img", class_="img-thumbnail") # Find all images in HTML
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                for img in results:
+                    date = datetime.strptime(img.get("alt"), "%d-%m-%Y").strftime("%Y-%m-%d")
+                    src = img.get("src")
+                    executor.submit(
+                        download_image, date, src, domain, add_dates, create_folders, force, headers, proxies, retries, timeout
+                    )
 
-            handle_page(
-                results, domain, add_dates, create_folders, force, headers, proxies, retries, timeout, workers
-            )
             page += 1
+
+        print("✅ Downloading completed!") # Prorably, LOL
     except KeyboardInterrupt:
-        print("\n🛑 Interrupted by user. Trying to exit... If it fails, press again.")
+        print("\n🛑 Interrupted by user. Trying to exit... If it fails, press again.") # I am sure it will fail because of threads
         exit(0)
 
 
