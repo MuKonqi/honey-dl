@@ -24,16 +24,16 @@ def download_image(
 ):
     """Download and save a image."""
 
-    content = get_content(url, headers, proxies, retries, timeout) # Get image as bytes
+    content = get_content(url, headers, proxies, retries, timeout)  # Get image as bytes
 
     if content:
-        url_path = urlparse(url).path # Convert the URL to path
-        filename = os.path.basename(url_path) # Extract filename from URL's path
+        url_path = urlparse(url).path  # Convert the URL to path
+        filename = os.path.basename(url_path)  # Extract filename from URL's path
 
-        if add_dates: # YYYY-mm-dd
+        if add_dates:  # YYYY-mm-dd
             filename = f"({date}) {filename}"
 
-        if create_folders: # YYYY-mm-dd
+        if create_folders:  # YYYY-mm-dd
             folder = os.path.basename(os.path.dirname(url_path))
             path = os.path.join(domain, folder, filename)
         else:
@@ -42,15 +42,15 @@ def download_image(
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.isfile(path) or force:
             with open(path, "wb") as f:
-                f.write(content) # Write the image (bytes) to a file
+                f.write(content)  # Write the image (bytes) to a file
             print(f"📥 Downloaded: {filename}")
-            return True, False # False means the image just downloaded
+            return True, False  # False means the image just downloaded
         else:
             print(f"⏭️ Skipped (already exists): {filename}")
-            return True, True # True means the image already downloaded
+            return True, True  # True means the image already downloaded
 
     else:
-        return False, False # Second boolean is unimportant here
+        return False, False  # Second boolean is unimportant here
 
 
 def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: int):
@@ -61,19 +61,19 @@ def get_content(url: str, headers: dict, proxies: dict, retries: int, timeout: i
     while i <= retries:
         try:
             response = requests.get(url, headers=headers, proxies=proxies, timeout=timeout)
-            if response.status_code == 200: # Means the request was successful
+            if response.status_code == 200:  # Means the request was successful
                 return response.content
             else:
                 print(f"❌ Failed to get: {url}, {response.status_code}")
                 return False
-        except requests.exceptions.Timeout: # Prorably because of the host's limites
+        except requests.exceptions.Timeout:  # Prorably because of the host's limites
             if i == retries:
                 print(f"❌ Timed out: {url}")
                 return False
             else:
                 print(f"🔁 Timed out, retrying ({i + 1}/{retries}): {url}")
             i += 1
-        except requests.exceptions.RequestException as e: # Something is wrong with requests
+        except requests.exceptions.RequestException as e:  # Something is wrong with requests
             print(f"❌ Request error: {url}, {e}")
             if i == retries:
                 return False
@@ -101,12 +101,7 @@ def parse_json_callback(ctx, param, value):
     default=True,
     help="Add the upload date (YYYY-mm-dd) to filename",
 )
-@click.option(
-    "-b",
-    "--break-number",
-    default=1,
-    help="Break the loop after reaching this many pages (0 for disable)"
-)
+@click.option("-b", "--break-number", default=1, help="Break the loop after reaching this many pages (0 for disable)")
 @click.option(
     "-c",
     "--create-folders/--no-create-folders",
@@ -121,24 +116,9 @@ def parse_json_callback(ctx, param, value):
     callback=parse_json_callback,
     help="HTTP headers as JSON string",
 )
-@click.option(
-    "-n",
-    "--navigator",
-    default="git",
-    help="The URL parameter/query for navigating to different pages"
-)
-@click.option(
-    "-p1",
-    "--page-start",
-    default=0,
-    help="First page to download (0 means no limit: 1)"
-)
-@click.option(
-    "-p2",
-    "--page-end",
-    default=0,
-    help="Last page to download (0 means no limit: until error)"
-)
+@click.option("-n", "--navigator", default="git", help="The URL parameter/query for navigating to different pages")
+@click.option("-p1", "--page-start", default=0, help="First page to download (0 means no limit: 1)")
+@click.option("-p2", "--page-end", default=0, help="Last page to download (0 means no limit: until error)")
 @click.option(
     "-p",
     "--proxies",
@@ -177,15 +157,20 @@ def main(
 
         # If the URL contains the navigator
         if bool(re.search(rf"(\?|&|#){navigator}=(\d+)(&|$)", url)):
-            param = [param for param in urlparse(url).query.split("&") if param.startswith(navigator)][0] # Get navigator with the value
-            page_start = int(param.split("=")[-1]) # Extract start page number
+            param = [param for param in urlparse(url).query.split("&") if param.startswith(navigator)][
+                0
+            ]  # Get navigator with the value
+            page_start = int(param.split("=")[-1])  # Extract start page number
 
-            try: # Clean the URL from navigator with its previous and next connectors ("&" and "&"")
-                url = url.replace(f"{"&" if url[url.find(param) - 1] == "&" else ""}{param}{"&" if url[url.find(param) + len(param)] else "" == "&"}", "")
-            except IndexError: # Clean the URL from navigator with its previous ("&"")
-                url = url.replace(f"{"&" if url[url.find(param) - 1] == "&" else ""}{param}", "")
+            try:  # Clean the URL from navigator with its previous and next connectors ("&" and "&"")
+                url = url.replace(
+                    f"{'&' if url[url.find(param) - 1] == '&' else ''}{param}{'&' if url[url.find(param) + len(param)] else '' == '&'}",
+                    "",
+                )
+            except IndexError:  # Clean the URL from navigator with its previous ("&"")
+                url = url.replace(f"{'&' if url[url.find(param) - 1] == '&' else ''}{param}", "")
 
-        else: # 0 means unlimited, so we should start from one
+        else:  # 0 means unlimited, so we should start from one
             page_start = 1 if page_start == 0 else page_start
 
         if page_end != 0 and page_end < page_start:
@@ -195,43 +180,59 @@ def main(
         page = page_start
         old_pages = 0
 
-        while (page <= page_end or page_end == 0) and (old_pages < break_number or break_number == 0): # 0 means unlimited, so the condition(s) should be True
-            navigated_url = f"{url}&{navigator}={page}" # Set the target URL
+        while (page <= page_end or page_end == 0) and (
+            old_pages < break_number or break_number == 0
+        ):  # 0 means unlimited, so the condition(s) should be True
+            navigated_url = f"{url}&{navigator}={page}"  # Set the target URL
             print(f"📖 Processing page: {page}")
 
-            content = get_content(navigated_url, headers, proxies, retries, timeout) # Get HTML of the URL
+            content = get_content(navigated_url, headers, proxies, retries, timeout)  # Get HTML of the URL
             if content:
                 try:
-                    soup = BeautifulSoup(content, "lxml") # Try to parse HTML faster
+                    soup = BeautifulSoup(content, "lxml")  # Try to parse HTML faster
                 except FeatureNotFound:
-                    soup = BeautifulSoup(content, "html.parser") # Parse HTML
+                    soup = BeautifulSoup(content, "html.parser")  # Parse HTML
             else:
-                break # The downloading is prorably finished
+                break  # The downloading is prorably finished
 
-            results = soup.find_all("img", class_="img-thumbnail") # Find all images in HTML
+            results = soup.find_all("img", class_="img-thumbnail")  # Find all images in HTML
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                old_files = 0 # Number of old files
-                tasks = [] # The download tasks
+                old_files = 0  # Number of old files
+                tasks = []  # The download tasks
 
                 for img in results:
                     date = datetime.strptime(img.get("alt"), "%d-%m-%Y").strftime("%Y-%m-%d")
                     src = img.get("src")
-                    tasks.append(executor.submit(
-                        download_image, date, src, domain, add_dates, create_folders, force, headers, proxies, retries, timeout
-                    ))
+                    tasks.append(
+                        executor.submit(
+                            download_image,
+                            date,
+                            src,
+                            domain,
+                            add_dates,
+                            create_folders,
+                            force,
+                            headers,
+                            proxies,
+                            retries,
+                            timeout,
+                        )
+                    )
 
                 for future in as_completed(tasks):
-                    if future.result()[1]: # Check the 2nd boolean
+                    if future.result()[1]:  # Check the 2nd boolean
                         old_files += 1
 
-                if old_files == len(tasks): # Means all files are already downloaded in this page
+                if old_files == len(tasks):  # Means all files are already downloaded in this page
                     old_pages += 1
 
             page += 1
 
-        print("✅ Downloading completed!") # Prorably, LOL
+        print("✅ Downloading completed!")  # Prorably, LOL
     except KeyboardInterrupt:
-        print("\n🛑 Interrupted by user. Trying to exit... If it fails, press again.") # I am sure it will fail because of threads
+        print(
+            "\n🛑 Interrupted by user. Trying to exit... If it fails, press again."
+        )  # I am sure it will fail because of threads
         exit(0)
 
 
